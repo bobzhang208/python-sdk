@@ -33,6 +33,17 @@ from mcp.types import (
 
 logger = logging.getLogger(__name__)
 
+import os
+GET_TRACE = os.environ.get("GET_TRACE", "false").lower() == "true"
+if GET_TRACE:
+    import sys
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../Agent/src/dev_func')))
+    from dev_func.trace_func import trace
+else:
+    import warnings
+    def trace(*args, **kwargs):
+        pass
+
 
 SessionMessageOrError = SessionMessage | Exception
 StreamWriter = MemoryObjectSendStream[SessionMessageOrError]
@@ -161,6 +172,7 @@ class StreamableHTTPTransport:
             try:
                 message = JSONRPCMessage.model_validate_json(sse.data)
                 logger.debug(f"SSE message: {message}")
+                trace("MCP RESPONSE", message)
 
                 # Extract protocol version from initialization response
                 if is_initialization:
@@ -210,6 +222,7 @@ class StreamableHTTPTransport:
             ) as event_source:
                 event_source.response.raise_for_status()
                 logger.debug("GET SSE connection established")
+                trace("MCP REQUEST GET", str(headers))
 
                 async for sse in event_source.aiter_sse():
                     await self._handle_sse_event(sse, read_stream_writer)
@@ -383,6 +396,7 @@ class StreamableHTTPTransport:
                     is_resumption = bool(metadata and metadata.resumption_token)
 
                     logger.debug(f"Sending client message: {message}")
+                    trace("MCP REQUEST POST", message)
 
                     # Handle initialized notification
                     if self._is_initialized_notification(message):
